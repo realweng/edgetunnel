@@ -1,0 +1,33 @@
+name: Keepalive
+
+permissions:
+  contents: write
+
+on:
+  schedule:
+    - cron: "0 8 * * 1" # weekly, Monday 08:00 UTC
+  workflow_dispatch:
+
+jobs:
+  keepalive:
+    name: Empty commit if repo quiet for 30+ days
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+
+      - name: Commit only when repo inactive 30+ days
+        run: |
+          last=$(git log -1 --format=%ct)
+          now=$(date +%s)
+          age=$(( (now - last) / 86400 ))
+          echo "Last commit age: ${age} days"
+          if [ "$age" -lt 30 ]; then
+            echo "Repo is active, nothing to do."
+            exit 0
+          fi
+          git config user.name "GH Action - Keepalive"
+          git config user.email "action@github.com"
+          git commit --allow-empty -m "chore: keepalive (repo quiet ${age}d, prevents scheduled-workflow auto-disable)"
+          git push origin main
+          echo "Keepalive commit pushed."
