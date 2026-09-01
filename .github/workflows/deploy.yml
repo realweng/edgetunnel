@@ -1,0 +1,31 @@
+name: Deploy to Cloudflare Pages
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '_worker.js'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy _worker.js to moonshotai-tunnel
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+
+      - name: Deploy to Cloudflare Pages (direct upload)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          mkdir -p dist
+          cp _worker.js dist/_worker.js
+          npx --yes wrangler@latest pages deploy dist \
+            --project-name=moonshotai-tunnel \
+            --branch=main \
+            --commit-dirty=true
