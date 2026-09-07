@@ -8,6 +8,8 @@ on:
     branches: [main]
     paths:
       - '_worker.js'
+  schedule:
+    - cron: "45 2 * * *" # daily, after Upstream Sync (~01:30 UTC)
   workflow_dispatch:
 
 jobs:
@@ -18,7 +20,22 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v6
 
+      - name: Compute worker hash
+        id: hash
+        run: echo "sha=${{ hashFiles('_worker.js') }}" >> "$GITHUB_OUTPUT"
+
+      # sync.yml pushes with GITHUB_TOKEN, which cannot trigger this workflow
+      # via push events — hence the daily schedule above as the real trigger.
+      # The cache key is the _worker.js hash: hit = already deployed, skip.
+      - name: Restore last-deployed marker
+        id: marker
+        uses: actions/cache@v4
+        with:
+          path: .deployed-marker
+          key: deployed-${{ steps.hash.outputs.sha }}
+
       - name: Deploy to Cloudflare Pages (direct upload)
+        if: steps.marker.outputs.cache-hit != 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
@@ -35,3 +52,4 @@ jobs:
               --branch=main \
               --commit-dirty=true
           }
+          echo "deployed at $(date -u)" > .deployed-marker
